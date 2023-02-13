@@ -43,7 +43,11 @@ def read_from_db(table, query=None):
 # Проверка начличия в базе
 @sync_to_async
 def check_if_exists(table, query):
-    return table.objects.filter(name=query).exists()
+    if table == BotUser:
+        return table.objects.filter(name=query).exists()
+    elif table == BotClient:
+        if table.objects.filter(name=query).exists():
+            return table.objects.get(name=query).activity
 
 
 # Обновление поля в базе

@@ -7,6 +7,7 @@ from django.apps import apps
 from django.conf import settings
 from django.utils.timezone import now
 
+
 if not settings.configured:
     settings.configure(INSTALLED_APPS=['bot_app', 'myproject'], DATABASES = {
         'default': {

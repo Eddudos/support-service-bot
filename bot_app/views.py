@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from urllib.parse import urlencode
 from myproject.settings import CLIENT_SECRET, CLIENT_ID
 from bot_app.models import TokenTable, BotUser
-from bot_app.management.commands.src.bot_conf.app import dp, bot, loop, main
+from bot_app.management.commands.src.bot_conf.app import dp, bot, loop, main  #, set_state
 
 
 def asyncio_run(future, as_task=True):
@@ -53,8 +53,8 @@ def snippet_list(request, format=None):
         print('GEEEEEEEEEEEEEEEEEEET')
 
     if request.method == 'POST':
-        loop.run_until_complete(main(request.META['SERVER_NAME'] + ":" + request.META['SERVER_PORT']))
-        # Поиск по всем values
+        # loop.run_until_complete(main(request.META['SERVER_NAME'] + ":" + request.META['SERVER_PORT']))
+
         print(request.get_host())
         print('\n', 'AAAAA!!', request.POST, '\n')
 
@@ -139,7 +139,8 @@ def snippet_list(request, format=None):
             url = request.POST['auth[client_endpoint]'] + 'imconnector.activate'
             x = requests.post(url, json = PARAMS)
             print('imconnector.activate', x.text, '\n')
-            loop.run_until_complete(main(request.META['SERVER_NAME'] + ":" + request.META['SERVER_PORT']))   
+
+            # loop.run_until_complete(main(request.META['SERVER_NAME'] + ":" + request.META['SERVER_PORT']))   
 
             # PARAMS = {
             #     'event': 'ONIMCONNECTORMESSAGEADD',
@@ -183,7 +184,13 @@ def snippet_list(request, format=None):
             # kinda workaround
             # try:
             
-            loop.run_until_complete(main(request.POST['data[MESSAGES][0][message][text]']))
+            loop.run_until_complete(main(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][text]']))
+
+            print(request.POST.getlist('data[MESSAGES][0][message][params][CLASS]'))
+
+            # if 'bx-messenger-content-item-ol-output' in request.POST.getlist('data[MESSAGES][0][message][params][CLASS]'):
+            #     loop.run_until_complete(set_state())
+
             # except:
             #     time.sleep(1)
             #     loop.run_until_complete(main(request.POST['data[MESSAGES][0][message][text]']))

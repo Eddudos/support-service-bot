@@ -42,7 +42,9 @@ def write_to_db(table, user_id, username):
 # Чтение из базы
 @sync_to_async
 def read_from_db(table, query=None):
-    if table == BotDictionary:
+    if table == BotUser:
+        return table.objects.get(user_id=query).counter
+    elif table == BotDictionary:
         return table.objects.get(name=query).value
     elif table == BotButton:
         return [(button.name, button.reaction) for button in BotButton.objects.all()]
@@ -54,7 +56,7 @@ def read_from_db(table, query=None):
 @sync_to_async
 def check_if_exists(table, query):
     if table == BotUser:
-        return table.objects.filter(name=query).exists()
+        return table.objects.filter(user_id=query).exists()
     elif table == BotClient:
         if table.objects.filter(name=query).exists():
             return table.objects.get(name=query).activity
@@ -64,7 +66,7 @@ def check_if_exists(table, query):
 @sync_to_async
 def update_field(table, query, token=''):
     if table == BotUser:
-        table.objects.filter(name=query).update(last_date=now(), counter=F('counter')+1)
+        table.objects.filter(user_id=query).update(last_date=now(), counter=F('counter')+1)
     if table == TokenTable:
         table.objects.filter(name=query).update(token=token)
 

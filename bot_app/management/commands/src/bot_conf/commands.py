@@ -57,7 +57,9 @@ def check_update_token(x, refresh_token):
         
 
 
-@dp.message_handler(commands=['start', 'help'], state='*')  # Декоратор - слушатель
+
+
+@dp.message_handler(commands=['start'], state='*')  # Декоратор - слушатель
 async def send_welcome(message: types.Message, state: FSMContext):
     global buttons_lst
     # Реакция
@@ -67,10 +69,7 @@ async def send_welcome(message: types.Message, state: FSMContext):
     buttons_lst = await read_from_db(BotButton)
     # await message.answer(token)
     await GameStates.university.set()
-    if await check_if_exists(BotUser, message['from']['username']):
-        await update_field(BotUser, message['from']['username'])
-    else: 
-        await write_to_db(BotUser, message['from']['id'], message['from']['username']) 
+ 
 
     # await write_to_db(BotUser, message['from']['id'], message['from']['username'])
 
@@ -81,20 +80,36 @@ async def send_welcome(message: types.Message, state: FSMContext):
     # "entities": [{"type": "bot_command", "offset": 0, "length": 6}]}
 
 
+@dp.message_handler()  
+async def first_message(message: types.Message, state: FSMContext):
+    text = await read_from_db(BotDictionary, 'начальное_сообщение')
+    await message.answer(text)
+
+
 @dp.message_handler(state=GameStates.university)
 async def is_uni_active(message: types.Message, state: FSMContext):
     
     # await GameStates.university.set()
     
+
+
     msg = message['text']
     
     keyboard = create_keyboard(buttons_lst)
 
     if await check_if_exists(BotClient, msg):
         await state.update_data(uni=msg)
+        await state.update_data(counter=2)
         text = await read_from_db(BotDictionary, 'выбор_типа_обращения')
         await message.answer(text, reply_markup=keyboard)
         await GameStates.request.set()
+
+        # Подсчет обращений 
+        if await check_if_exists(BotUser, message['from']['id']):
+            await update_field(BotUser, message['from']['id'])
+        else: 
+            await write_to_db(BotUser, message['from']['id'], message['from']['username'])
+
     else:
         text = await read_from_db(BotDictionary, 'отказ_обслуживания')
         await message.answer(f"{text}  {msg}")     
@@ -113,7 +128,7 @@ async def text_request(message: types.Message, state: FSMContext):
     text = await read_from_db(BotDictionary, 'прощание')
     await message.answer(text)
     await GameStates.new_request.set()
-    
+
     file_id = await bot.get_user_profile_photos(message.from_id, 0, 1)
     if file_id["total_count"] >= 1:    
         # print('\n', file_id)
@@ -154,7 +169,7 @@ async def text_request(message: types.Message, state: FSMContext):
                 'message': {
                     'id': False,
                     'date': int(time.time()),
-                    'text': f"{user_data['btn']}  |  {user_data['uni']}"
+                    'text': f"{user_data['btn'] if 'btn' in user_data else 'Категория не выбрана'}  |  {user_data['uni']}"
                 },
                 'chat': {
                     'id': message['chat']['id']
@@ -211,6 +226,18 @@ async def text_request(message: types.Message, state: FSMContext):
 @dp.message_handler(state=GameStates.new_request)
 async def text_request(message: types.Message, state: FSMContext):
     text = await read_from_db(BotDictionary, 'новое обращение')
+
+    user_data = await state.get_data()
+
+    if await read_from_db(BotUser, message['from']['id']) >= user_data['counter']:
+        if message['text'] not in ['0', '1']:
+            await GameStates.request.set()
+            keyboard = create_keyboard(buttons_lst)
+            text = await read_from_db(BotDictionary, 'выбор_типа_обращения')
+            await state.update_data(counter=user_data['counter'] + 1)
+            await message.answer(text, reply_markup=keyboard)
+            return
+        
 
     if 'last_name' in message['from']:
         lastname = message['from']['last_name']

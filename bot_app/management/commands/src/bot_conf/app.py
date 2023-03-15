@@ -17,7 +17,7 @@ bot = Bot(token=API_KEY, loop=loop)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 async def main(chat_id, message):
-    await bot.send_message(chat_id, message)
+   await bot.send_message(chat_id, message)
 
 # async def set_state():
 #     print(1)

@@ -6,6 +6,7 @@ import nest_asyncio
 from asgiref.sync import sync_to_async
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.utils.timezone import now
 from rest_framework.parsers import JSONParser
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -14,7 +15,7 @@ from urllib.parse import urlencode
 from myproject.settings import CLIENT_SECRET, CLIENT_ID
 from bot_app.models import TokenTable, BotUser
 from bot_app.management.commands.src.bot_conf.app import dp, bot, loop, main  #, set_state
-
+from django.db.models import F
 
 def asyncio_run(future, as_task=True):
     """
@@ -55,7 +56,7 @@ def snippet_list(request, format=None):
     if request.method == 'POST':
         # loop.run_until_complete(main(request.META['SERVER_NAME'] + ":" + request.META['SERVER_PORT']))
 
-        print(request.get_host())
+        # print(request.get_host())
         print('\n', 'AAAAA!!', request.POST, '\n')
 
         # if ('error', 'invalid_token') in x.json().items():
@@ -86,7 +87,6 @@ def snippet_list(request, format=None):
         # else: 
         #     token = request.POST['auth[access_token]']
 
-        print('\n', request.get_host(), '\n')
         if request.POST['event'] == 'ONAPPINSTALL':
             # for i in request.POST:
             #     print(i, request.POST[i])
@@ -151,7 +151,7 @@ def snippet_list(request, format=None):
             # x = requests.post(url, json = PARAMS)
             # print('event.bind', x.text)
 
-            # ПОСЫЛАЕМ ДАВАЙ ДАВАЙ
+            # ПОСЫЛАЕМ ДАВАЙ ДАВАЙ!
             # PARAMS = {
             #     'CONNECTOR': 'OL_0',
             #     'LINE': 3,
@@ -182,9 +182,14 @@ def snippet_list(request, format=None):
         
         if request.POST['event'] == 'ONIMCONNECTORMESSAGEADD':
             # kinda workaround
-            # try:
             
             loop.run_until_complete(main(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][text]']))
+            
+            
+
+            if 'bx-messenger-content-item-ol-output bx-messenger-content-item-vote' in request.POST['data[MESSAGES][0][message][params][CLASS]']:
+                BotUser.objects.filter(user_id=request.POST['data[MESSAGES][0][chat][id]']).update(last_date=now(), counter=F('counter')+1)
+                
 
             # print(request.POST.getlist('data[MESSAGES][0][message][params][CLASS]'))
 
@@ -228,26 +233,11 @@ def snippet_list(request, format=None):
             # loop.close()
 
             # send_fut = asyncio_run(send_message())
-            
-            
-            
-            
-            
-            
 
-
-        # if request.POST['event'] == 'ONIMBOTMESSAGEADD':
-        #     print('ONIMBOTMESSAGEADD!!!', request.POST)    
-        #     PARAMS ={
-        #         'BOT_ID': request.POST['data[BOT][7][BOT_ID]'],
-        #         'DIALOG_ID': request.POST['data[PARAMS][DIALOG_ID]'],
-		# 	    'MESSAGE': 'Function executed fffffff',
-        #         'auth': token
-        #     }
-            
-        #     url = request.POST['auth[client_endpoint]'] + 'imbot.message.add'
-        #     # print(111, url)
-        #     x = requests.post(url, json = PARAMS)
+            # 'data[MESSAGES][0][chat][id]'
+            # 'data[MESSAGES][0][message][params][CLASS]': ['bx-messenger-content-item-ol-output bx-messenger-content-item-vote']
+            # 'data[MESSAGES][0][message][params][CLASS]': ['bx-messenger-content-item-ol-output']
+            # 'data[MESSAGES][0][message][params][CLASS]': ['bx-messenger-content-item-ol-output']
 
         return Response({}, status=status.HTTP_201_CREATED)
         

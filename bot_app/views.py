@@ -186,7 +186,9 @@ def snippet_list(request, format=None):
             
             loop.run_until_complete(main(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][text]']))
 
-            print(request.POST.getlist('data[MESSAGES][0][message][params][CLASS]'))
+            # print(request.POST.getlist('data[MESSAGES][0][message][params][CLASS]'))
+
+            
 
             # if 'bx-messenger-content-item-ol-output' in request.POST.getlist('data[MESSAGES][0][message][params][CLASS]'):
             #     loop.run_until_complete(set_state())

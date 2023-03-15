@@ -13,7 +13,7 @@ nest_asyncio.apply()  # This may cause catastrophic consequences while working a
 
 # __import__('IPython').embed()
 bot = Bot(token=API_KEY, loop=loop)
-print(11111111111111111111111111111111111111111111111111)
+
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 async def main(chat_id, message):

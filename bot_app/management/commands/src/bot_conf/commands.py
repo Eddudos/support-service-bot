@@ -30,8 +30,8 @@ from .keyboards import create_keyboard
 from .data_fetcher import *
 from .bot_settings import API_KEY
 
-selected = ['Не выбрано', '']
 
+# selected = ['Не выбрано', '']
 
 def check_update_token(x, refresh_token):
     if ('error', 'invalid_token') in x.json().items() or ('error', 'expired_token') in x.json().items():
@@ -59,10 +59,12 @@ def check_update_token(x, refresh_token):
 
 @dp.message_handler(commands=['start', 'help'], state='*')  # Декоратор - слушатель
 async def send_welcome(message: types.Message, state: FSMContext):
-
+    global buttons_lst
     # Реакция
     text = await read_from_db(BotDictionary, 'стартовое_сообщение')
     await message.answer(text)
+
+    buttons_lst = await read_from_db(BotButton)
     # await message.answer(token)
     await GameStates.university.set()
     if await check_if_exists(BotUser, message['from']['username']):
@@ -81,15 +83,15 @@ async def send_welcome(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=GameStates.university)
 async def is_uni_active(message: types.Message, state: FSMContext):
-    global buttons_lst, selected
+    
     # await GameStates.university.set()
+    
     msg = message['text']
-
-    buttons_lst = await read_from_db(BotButton)
+    
     keyboard = create_keyboard(buttons_lst)
 
     if await check_if_exists(BotClient, msg):
-        selected[1] = msg
+        await state.update_data(uni=msg)
         text = await read_from_db(BotDictionary, 'выбор_типа_обращения')
         await message.answer(text, reply_markup=keyboard)
         await GameStates.request.set()
@@ -100,10 +102,9 @@ async def is_uni_active(message: types.Message, state: FSMContext):
 
 @dp.callback_query_handler(lambda c: c.data in [ans[0] for ans in buttons_lst], state=GameStates.request)
 async def btn_click_call_back_all(callback_query: types.CallbackQuery, state: FSMContext):
-    global selected
     for ans in buttons_lst:
         if callback_query.data == ans[0]:
-            selected[0] = callback_query.data
+            await state.update_data(btn=callback_query.data)
             await bot.send_message(callback_query.from_user.id, ans[1])
 
 
@@ -137,6 +138,8 @@ async def text_request(message: types.Message, state: FSMContext):
     else:
         lastname = f"@{message['from']['username']}"
 
+    user_data = await state.get_data()
+
     PARAMS = {
         'CONNECTOR': 'OL_0',
         'LINE': 3,
@@ -151,7 +154,7 @@ async def text_request(message: types.Message, state: FSMContext):
                 'message': {
                     'id': False,
                     'date': int(time.time()),
-                    'text': f"{'  |  '.join(i for i in selected)}"
+                    'text': f"{user_data['btn']}  |  {user_data['uni']}"
                 },
                 'chat': {
                     'id': message['chat']['id']
@@ -176,7 +179,7 @@ async def text_request(message: types.Message, state: FSMContext):
         await update_field(TokenTable, 'access_token', token)
         await update_field(TokenTable, 'refresh_token', refresh_token)
         PARAMS['auth'] = await read_from_db(TokenTable, 'access_token')
-        PARAMS['MESSAGES'][0]['message']['text'] = f"{'  |  '.join(i for i in selected)}"
+        PARAMS['MESSAGES'][0]['message']['text'] = f"{user_data['btn']}  |  {user_data['uni']}"
         x = requests.post(url, json = PARAMS)
         PARAMS['MESSAGES'][0]['message']['text'] = message['text']
         x = requests.post(url, json = PARAMS)
@@ -213,6 +216,8 @@ async def text_request(message: types.Message, state: FSMContext):
         lastname = message['from']['last_name']
     else:
         lastname = f"@{message['from']['username']}"
+
+    user_data = await state.get_data()
 
     PARAMS = {
         'CONNECTOR': 'OL_0',

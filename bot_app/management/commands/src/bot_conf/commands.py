@@ -91,11 +91,14 @@ async def is_uni_active(message: types.Message, state: FSMContext):
     
     # await GameStates.university.set()
     
-
-
     msg = message['text']
     
     keyboard = create_keyboard(buttons_lst)
+
+    user_data = await state.get_data()
+
+    # if 'uni' in user_data:
+    #     await GameStates.request.set()
 
     if await check_if_exists(BotClient, msg):
         await state.update_data(uni=msg)
@@ -123,11 +126,13 @@ async def btn_click_call_back_all(callback_query: types.CallbackQuery, state: FS
             await bot.send_message(callback_query.from_user.id, ans[1])
 
 
-@dp.message_handler(state=GameStates.request)
+@dp.message_handler(state=GameStates.request, content_types=['photo', 'text'])
 async def text_request(message: types.Message, state: FSMContext):
     text = await read_from_db(BotDictionary, 'прощание')
-    await message.answer(text)
     await GameStates.new_request.set()
+
+    print(1)
+    print(message.photo)
 
     file_id = await bot.get_user_profile_photos(message.from_id, 0, 1)
     if file_id["total_count"] >= 1:    
@@ -157,7 +162,7 @@ async def text_request(message: types.Message, state: FSMContext):
 
     PARAMS = {
         'CONNECTOR': 'OL_0',
-        'LINE': 3,
+        'LINE': 18,
         'MESSAGES': [{
                 
                 'user': {
@@ -169,7 +174,8 @@ async def text_request(message: types.Message, state: FSMContext):
                 'message': {
                     'id': False,
                     'date': int(time.time()),
-                    'text': f"{user_data['btn'] if 'btn' in user_data else 'Категория не выбрана'}  |  {user_data['uni']}"
+                    'text': f"{user_data['btn'] if 'btn' in user_data else 'Категория не выбрана'}  |  {user_data['uni']}",
+                    'files': ''
                 },
                 'chat': {
                     'id': message['chat']['id']
@@ -180,52 +186,72 @@ async def text_request(message: types.Message, state: FSMContext):
     }
 
     url = CLIEND_ENDPOINT + 'imconnector.send.messages'
-    x = requests.post(url, json = PARAMS)
+    # x = requests.post(url, json = PARAMS)
+
+    # check
+    # token, refresh_token = check_update_token(x, await read_from_db(TokenTable, 'refresh_token'))
+
+    # if token and refresh_token:
+    #     await update_field(TokenTable, 'access_token', token)
+    #     await update_field(TokenTable, 'refresh_token', refresh_token)
+    #     PARAMS['auth'] = await read_from_db(TokenTable, 'access_token')
+    #     x = requests.post(url, json = PARAMS)
+    #     print('\n', x.text, '\n')
+
+
+    if message.caption:  ####   
+        await message.answer(text)
+        x = requests.post(url, json = PARAMS)
+
+        PARAMS['MESSAGES'][0]['message']['text'] = message.caption
+
+        x = requests.post(url, json = PARAMS)
 
     PARAMS['MESSAGES'][0]['message']['text'] = message['text']
 
+    if message.photo:
+        # print('message photo', message.photo)
+        file = await bot.get_file(message.photo[-1]['file_id']) 
+        # print('get file 2', file)
+        file_path = file.file_path
+        # print('file path', file_path)
+        photo_url = f"https://api.telegram.org/file/bot{API_KEY}/{file_path}"
+        print('photo url', photo_url)
+        PARAMS['MESSAGES'][0]['message']['files'] = [{'url': photo_url}]
+
     x = requests.post(url, json = PARAMS)
 
-    print('imconnector.send.messages', x.text, '\n')
-
+    # check
     token, refresh_token = check_update_token(x, await read_from_db(TokenTable, 'refresh_token'))
 
     if token and refresh_token:
         await update_field(TokenTable, 'access_token', token)
         await update_field(TokenTable, 'refresh_token', refresh_token)
         PARAMS['auth'] = await read_from_db(TokenTable, 'access_token')
-        PARAMS['MESSAGES'][0]['message']['text'] = f"{user_data['btn']}  |  {user_data['uni']}"
-        x = requests.post(url, json = PARAMS)
-        PARAMS['MESSAGES'][0]['message']['text'] = message['text']
         x = requests.post(url, json = PARAMS)
         print('\n', x.text, '\n')
-        
-    # if ('error', 'invalid_token') in x.json().items() or ('error', 'expired_token') in x.json().items():
-    #     #
-    #     # TODO: 
-    #     # Check if token does refresh
-    #     #
-    #     query_url = 'https://oauth.bitrix.info/oauth/token/'
-    #     query_data = urlencode({
-    #                 'grant_type': 'refresh_token',
-    #                 'client_id': CLIENT_ID,
-    #                 'client_secret': CLIENT_SECRET,
-    #                 'refresh_token': await read_from_db(TokenTable, 'refresh_token')
-    #     })
-    #     x = requests.get(f'{query_url}?{query_data}')
-    #     print('expired_token!', x.json(), '\n')
-        
-    #     token = x.json()['access_token']
-    #     refresh_token = x.json()['refresh_token']
+
+    print('imconnector.send.messages', x.text, '\n')
+
+    # token, refresh_token = check_update_token(x, await read_from_db(TokenTable, 'refresh_token'))
+
+    # if token and refresh_token:
     #     await update_field(TokenTable, 'access_token', token)
     #     await update_field(TokenTable, 'refresh_token', refresh_token)
+    #     PARAMS['auth'] = await read_from_db(TokenTable, 'access_token')
+    #     PARAMS['MESSAGES'][0]['message']['text'] = f"{user_data['btn']}  |  {user_data['uni']}"
+    #     x = requests.post(url, json = PARAMS)
+    #     PARAMS['MESSAGES'][0]['message']['text'] = message['text']
     #     x = requests.post(url, json = PARAMS)
     #     print('\n', x.text, '\n')
         
+        
 
-@dp.message_handler(state=GameStates.new_request)
+@dp.message_handler(state=GameStates.new_request, content_types=['photo', 'text'])
 async def text_request(message: types.Message, state: FSMContext):
-    text = await read_from_db(BotDictionary, 'новое обращение')
+    # text = await read_from_db(BotDictionary, 'новое обращение')
+    
+    print(2)
 
     user_data = await state.get_data()
 
@@ -248,7 +274,7 @@ async def text_request(message: types.Message, state: FSMContext):
 
     PARAMS = {
         'CONNECTOR': 'OL_0',
-        'LINE': 3,
+        'LINE': 18,
         'MESSAGES': [{
                 
                 'user': {
@@ -259,7 +285,8 @@ async def text_request(message: types.Message, state: FSMContext):
                 'message': {
                     'id': False,
                     'date': int(time.time()),
-                    'text': message['text']
+                    'text': message['text'],
+                    'files': ''
                 },
                 'chat': {
                     'id': message['chat']['id']
@@ -268,6 +295,26 @@ async def text_request(message: types.Message, state: FSMContext):
         }],
         'auth': await read_from_db(TokenTable, 'access_token')
     }
+
+    if message.caption:  ####
+        PARAMS['MESSAGES'][0]['message']['text'] = message.caption
+
+    if message.photo:
+        # print('message photo', message.photo)
+        file = await bot.get_file(message.photo[-1]['file_id']) 
+        # print('get file 2', file)
+        file_path = file.file_path
+        # print('file path', file_path)
+        photo_url = f"https://api.telegram.org/file/bot{API_KEY}/{file_path}"
+        print('photo url', photo_url)
+        PARAMS['MESSAGES'][0]['message']['files'] = [{'url': photo_url}]
+
+    # [<PhotoSize {"file_id": "AgACAgIAAxkBAAIBtWQZkRxOCpVeMxCsasVaN0KlHkenAALqyzEb4ZvJSN4yxzFShx0XAQADAgADcwADLwQ", 
+    # "file_unique_id": "AQAD6ssxG-GbyUh4", "file_size": 1015, "width": 90, "height": 55}>, 
+    # <PhotoSize {"file_id": "AgACAgIAAxkBAAIBtWQZkRxOCpVeMxCsasVaN0KlHkenAALqyzEb4ZvJSN4yxzFShx0XAQADAgADbQADLwQ", 
+    # "file_unique_id": "AQAD6ssxG-GbyUhy", "file_size": 16246, "width": 320, "height": 194}>, 
+    # <PhotoSize {"file_id": "AgACAgIAAxkBAAIBtWQZkRxOCpVeMxCsasVaN0KlHkenAALqyzEb4ZvJSN4yxzFShx0XAQADAgADeAADLwQ", 
+    # "file_unique_id": "AQAD6ssxG-GbyUh9", "file_size": 38455, "width": 546, "height": 331}>]
 
     url = CLIEND_ENDPOINT + 'imconnector.send.messages'
     x = requests.post(url, json = PARAMS)

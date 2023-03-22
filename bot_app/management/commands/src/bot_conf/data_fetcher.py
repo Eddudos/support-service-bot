@@ -58,8 +58,8 @@ def check_if_exists(table, query):
     if table == BotUser:
         return table.objects.filter(user_id=query).exists()
     elif table == BotClient:
-        if table.objects.filter(name=query).exists():
-            return table.objects.get(name=query).activity
+        if table.objects.filter(name__iexact=query).exists():
+            return table.objects.get(name__iexact=query).activity
 
 
 # Обновление поля в базе

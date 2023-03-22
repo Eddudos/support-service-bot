@@ -16,8 +16,11 @@ bot = Bot(token=API_KEY, loop=loop)
 
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-async def main(chat_id, message):
-   await bot.send_message(chat_id, message)
+async def send_message(chat_id, message):
+    await bot.send_message(chat_id, message)
+
+async def send_photo(chat_id, photo_url):
+    await bot.send_photo(chat_id, photo_url)
 
 # async def set_state():
 #     print(1)

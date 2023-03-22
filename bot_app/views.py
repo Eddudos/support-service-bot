@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from urllib.parse import urlencode
 from myproject.settings import CLIENT_SECRET, CLIENT_ID
 from bot_app.models import TokenTable, BotUser
-from bot_app.management.commands.src.bot_conf.app import dp, bot, loop, main  #, set_state
+from bot_app.management.commands.src.bot_conf.app import dp, bot, loop, send_message, send_photo  #, set_state
 from django.db.models import F
 
 def asyncio_run(future, as_task=True):
@@ -112,6 +112,8 @@ def snippet_list(request, format=None):
             refresh_token = request.POST['auth[refresh_token]']
             TokenTable.objects.filter(name='refresh_token').update(token=refresh_token)
             
+            print(request.get_host())
+
             PARAMS = {
                 'ID': 'OL_0',
                 'NAME': 'Коннектор к ОЛ 0',
@@ -131,7 +133,7 @@ def snippet_list(request, format=None):
 
             PARAMS = {
                 'CONNECTOR': 'OL_0',
-                'LINE': 3,
+                'LINE': 18,
                 'ACTIVE': 1,
                 'auth': token
             }
@@ -142,19 +144,19 @@ def snippet_list(request, format=None):
 
             # loop.run_until_complete(main(request.META['SERVER_NAME'] + ":" + request.META['SERVER_PORT']))   
 
-            # PARAMS = {
-            #     'event': 'ONIMCONNECTORMESSAGEADD',
-            #     'handler': 'http://95.163.235.140:8005/snippets/',
-            #     'auth': token
-            # }
-            # url = request.POST['auth[client_endpoint]'] + 'event.bind'
-            # x = requests.post(url, json = PARAMS)
-            # print('event.bind', x.text)
+            PARAMS = {
+                'event': 'ONIMCONNECTORMESSAGEADD',
+                'handler': f'http://{request.get_host()}/snippets/',
+                'auth': token
+            }
+            url = request.POST['auth[client_endpoint]'] + 'event.bind'
+            x = requests.post(url, json = PARAMS)
+            print('event.bind', x.text)
 
             # ПОСЫЛАЕМ ДАВАЙ ДАВАЙ!
             # PARAMS = {
             #     'CONNECTOR': 'OL_0',
-            #     'LINE': 3,
+            #     'LINE': 18,
             #     'MESSAGES': [{
                         
             #             'user': {
@@ -179,14 +181,17 @@ def snippet_list(request, format=None):
             # print('imconnector.send.messages', x.text, '\n')
 
             # return Response({}, status=status.HTTP_201_CREATED)
-        
+
         if request.POST['event'] == 'ONIMCONNECTORMESSAGEADD':
             # kinda workaround
-            
-            loop.run_until_complete(main(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][text]']))
-            
-            
+            print('ONIMCONNECTORMESSAGEADD!! ')
 
+            if 'data[MESSAGES][0][message][files][0][link]' in request.POST:
+                loop.run_until_complete(send_photo(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][files][0][link]']))
+                request.POST['data[MESSAGES][0][message][files][0][link]']
+
+            loop.run_until_complete(send_message(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][text]']))
+            
             if 'bx-messenger-content-item-ol-output bx-messenger-content-item-vote' in request.POST['data[MESSAGES][0][message][params][CLASS]']:
                 BotUser.objects.filter(user_id=request.POST['data[MESSAGES][0][chat][id]']).update(last_date=now(), counter=F('counter')+1)
                 

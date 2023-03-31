@@ -23,6 +23,7 @@ import time
 from urllib.parse import urlencode
 from aiogram import types
 from aiogram.dispatcher import FSMContext
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from .app import dp, bot
 from .states import GameStates
@@ -34,7 +35,7 @@ from .bot_settings import API_KEY
 # selected = ['Не выбрано', '']
 
 def check_update_token(x, refresh_token):
-    if ('error', 'invalid_token') in x.json().items() or ('error', 'expired_token') in x.json().items():
+    if ('error', 'invalid_token') in x.json().items() or ('error', 'expired_token') in x.json().items() or ('error','user_access_error') in x.json().items():
         #
         # TODO: 
         # Check if token does refresh
@@ -58,18 +59,28 @@ def check_update_token(x, refresh_token):
 
 
 
-
+# @dp.message_handler()
 @dp.message_handler(commands=['start'], state='*')  # Декоратор - слушатель
 async def send_welcome(message: types.Message, state: FSMContext):
     global buttons_lst
+    await state.finish()
     # Реакция
     text = await read_from_db(BotDictionary, 'стартовое_сообщение')
     await message.answer(text)
 
     buttons_lst = await read_from_db(BotButton)
+
+    # for i in buttons_lst:
+    #     print(i[0])
+
     # await message.answer(token)
-    await GameStates.university.set()
- 
+    text = await read_from_db(BotDictionary, 'выбор_типа_обращения')
+
+    keyboard = create_keyboard(buttons_lst)
+
+    await message.answer(text, reply_markup=keyboard)
+    await GameStates.request.set()
+    
 
     # await write_to_db(BotUser, message['from']['id'], message['from']['username'])
 
@@ -80,62 +91,94 @@ async def send_welcome(message: types.Message, state: FSMContext):
     # "entities": [{"type": "bot_command", "offset": 0, "length": 6}]}
 
 
-@dp.message_handler()  
+@dp.message_handler(content_types=['text'])  
 async def first_message(message: types.Message, state: FSMContext):
     text = await read_from_db(BotDictionary, 'начальное_сообщение')
     await message.answer(text)
 
 
-@dp.message_handler(state=GameStates.university)
-async def is_uni_active(message: types.Message, state: FSMContext):
+# @dp.message_handler(state=GameStates.university)
+# async def is_uni_active(message: types.Message, state: FSMContext):
     
-    # await GameStates.university.set()
+#     # await GameStates.university.set()
     
-    msg = message['text']
+#     msg = message['text']
     
-    keyboard = create_keyboard(buttons_lst)
+#     keyboard = create_keyboard(buttons_lst)
 
-    user_data = await state.get_data()
+#     user_data = await state.get_data()
 
-    # if 'uni' in user_data:
-    #     await GameStates.request.set()
+#     # if 'uni' in user_data:
+#     #     await GameStates.request.set()
 
-    if await check_if_exists(BotClient, msg):
-        await state.update_data(uni=msg)
-        await state.update_data(counter=2)
-        text = await read_from_db(BotDictionary, 'выбор_типа_обращения')
-        await message.answer(text, reply_markup=keyboard)
-        await GameStates.request.set()
+#     if await check_if_exists(BotClient, msg):
+#         await state.update_data(uni=msg)
+#         await state.update_data(counter=2)
+#         text = await read_from_db(BotDictionary, 'выбор_типа_обращения')
+#         await message.answer(text, reply_markup=keyboard)
+#         await GameStates.request.set()
 
         # Подсчет обращений 
-        if await check_if_exists(BotUser, message['from']['id']):
-            await update_field(BotUser, message['from']['id'])
-        else: 
-            await write_to_db(BotUser, message['from']['id'], message['from']['username'])
+        # if await check_if_exists(BotUser, message['from']['id']):
+        #     await update_field(BotUser, message['from']['id'])
+        # else: 
+        #     await write_to_db(BotUser, message['from']['id'], message['from']['username'])
 
-    else:
-        text = await read_from_db(BotDictionary, 'отказ_обслуживания')
-        await message.answer(f"{text}  {msg}")     
+#     else:
+#         text = await read_from_db(BotDictionary, 'отказ_обслуживания')
+#         await message.answer(f"{text}")     
 
 
 @dp.callback_query_handler(lambda c: c.data in [ans[0] for ans in buttons_lst], state=GameStates.request)
-async def btn_click_call_back_all(callback_query: types.CallbackQuery, state: FSMContext):
-    for ans in buttons_lst:
-        if callback_query.data == ans[0]:
-            await state.update_data(btn=callback_query.data)
-            await bot.send_message(callback_query.from_user.id, ans[1])
+async def btn_click_call_back_all(callback_query: types.CallbackQuery, state: FSMContext): 
+    # index of pressed button in buttons_lst
+    index = [ind for ind, elem in enumerate(buttons_lst) if elem[0] == callback_query.data][0]
+    btn_tuple = buttons_lst[index]
+    await state.update_data(btn=btn_tuple[0])
+    user_data = await state.get_data()
+
+    if 'msg' not in user_data:
+        msg = await bot.send_message(callback_query.from_user.id, btn_tuple[1])
+        await state.update_data(msg=msg)
+    else:
+        await user_data['msg'].edit_text(btn_tuple[1])
+
+    if btn_tuple[2] == False:
+        text = await read_from_db(BotDictionary, 'прощание')
+        btn = await read_from_db(BotDictionary, 'новое обращение')
+        ##### HARDCODE
+        key_row = InlineKeyboardButton(text=btn, callback_data=btn, url='t.me/sibteh_alyona_bot?start=0')  
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(key_row) 
+        await bot.send_message(callback_query.from_user.id, text, reply_markup=keyboard) 
+        await GameStates.new_request.set()
 
 
-@dp.message_handler(state=GameStates.request, content_types=['photo', 'text'])
-async def text_request(message: types.Message, state: FSMContext):
-    text = await read_from_db(BotDictionary, 'прощание')
-    await GameStates.new_request.set()
+@dp.message_handler(state=GameStates.request, content_types=['photo', 'text', 'document'])
+async def request(message: types.Message, state: FSMContext):
+    user_data = await state.get_data()
+    if 'btn' not in user_data:
+        text = await read_from_db(BotDictionary, 'отказ_обслуживания')
+        await message.answer(text)
+        return
 
-    print(1)
-    print(message.photo)
+    await GameStates.open_line.set()
+    await update_field(BotButton, user_data['btn'])
+
+    # if await check_if_exists(BotUser, message['from']['id']):
+    #     await update_field(BotUser, message['from']['id'])
+    # else: 
+    #     await write_to_db(BotUser, message['from']['id'], message['from']['username'])
+
+    if not await check_if_exists(BotUser, message['from']['id']):
+        await write_to_db(BotUser, message['from']['id'], message['from']['username'])
+        await state.update_data(num_request=0)
+    else:
+        counter = await read_from_db(BotUser, message['from']['id'])
+        await state.update_data(num_request=counter)
 
     file_id = await bot.get_user_profile_photos(message.from_id, 0, 1)
-    if file_id["total_count"] >= 1:    
+    if file_id["total_count"] >= 1:  
         # print('\n', file_id)
         file = await bot.get_file(file_id['photos'][0][0]['file_id']) 
         # print('\n', file)
@@ -149,8 +192,6 @@ async def text_request(message: types.Message, state: FSMContext):
     # {"file_id": "AgACAgIAAxUAAWQO1IMda37tQNcpmC1dXNIkekvgAAK5pzEbyJUVMLMpP8V6SdgVAQADAgADYgADLwQ", "file_unique_id": "AQADuacxG8iVFTBn", "file_size": 27294, "width": 320, "height": 320}, 
     # {"file_id": "AgACAgIAAxUAAWQO1IMda37tQNcpmC1dXNIkekvgAAK5pzEbyJUVMLMpP8V6SdgVAQADAgADYwADLwQ", "file_unique_id": "AQADuacxG8iVFTAB", "file_size": 86296, "width": 640, "height": 640}]]}
 
-    
-    
     # photo_url = "https://fastly.picsum.photos/id/6/200/200.jpg?hmac=g4Q9Vcu5Ohm8Rwap3b6HSIxUfIALZ6BasESHhw7VjLE"
     
     if 'last_name' in message['from']:
@@ -174,7 +215,7 @@ async def text_request(message: types.Message, state: FSMContext):
                 'message': {
                     'id': False,
                     'date': int(time.time()),
-                    'text': f"{user_data['btn'] if 'btn' in user_data else 'Категория не выбрана'}  |  {user_data['uni']}",
+                    'text': f"Тип обращения: {user_data['btn']}",
                     'files': ''
                 },
                 'chat': {
@@ -198,30 +239,9 @@ async def text_request(message: types.Message, state: FSMContext):
     #     x = requests.post(url, json = PARAMS)
     #     print('\n', x.text, '\n')
 
-
-    if message.caption:  ####   
-        await message.answer(text)
-        x = requests.post(url, json = PARAMS)
-
-        PARAMS['MESSAGES'][0]['message']['text'] = message.caption
-
-        x = requests.post(url, json = PARAMS)
-
-    PARAMS['MESSAGES'][0]['message']['text'] = message['text']
-
-    if message.photo:
-        # print('message photo', message.photo)
-        file = await bot.get_file(message.photo[-1]['file_id']) 
-        # print('get file 2', file)
-        file_path = file.file_path
-        # print('file path', file_path)
-        photo_url = f"https://api.telegram.org/file/bot{API_KEY}/{file_path}"
-        print('photo url', photo_url)
-        PARAMS['MESSAGES'][0]['message']['files'] = [{'url': photo_url}]
-
     x = requests.post(url, json = PARAMS)
 
-    # check
+        # check
     token, refresh_token = check_update_token(x, await read_from_db(TokenTable, 'refresh_token'))
 
     if token and refresh_token:
@@ -230,6 +250,42 @@ async def text_request(message: types.Message, state: FSMContext):
         PARAMS['auth'] = await read_from_db(TokenTable, 'access_token')
         x = requests.post(url, json = PARAMS)
         print('\n', x.text, '\n')
+
+    # Delete FSM fields
+    # user_data = await state.get_data()
+    # del state['btn']
+    # del state['msg']
+
+    if message.photo:  ####   
+        # print('message photo', message.photo)
+        file = await bot.get_file(message.photo[-1]['file_id']) 
+        # print('get file 2', file)
+        file_path = file.file_path
+        # print('file path', file_path)
+        photo_url = f"https://api.telegram.org/file/bot{API_KEY}/{file_path}"
+        print('photo url', photo_url)
+        PARAMS['MESSAGES'][0]['message']['files'] = [{'url': photo_url}]
+        if message.caption:
+            # await message.answer(text)
+            PARAMS['MESSAGES'][0]['message']['text'] = message.caption
+        x = requests.post(url, json = PARAMS)
+
+    elif message.document:
+        file = await bot.get_file(message.document['file_id'])
+        file_path = file.file_path
+        doc_url = f"https://api.telegram.org/file/bot{API_KEY}/{file_path}"
+        print('doc url', doc_url)
+        PARAMS['MESSAGES'][0]['message']['files'] = [{'url': doc_url}]
+        if message.caption:
+            PARAMS['MESSAGES'][0]['message']['text'] = message.caption
+        x = requests.post(url, json = PARAMS)
+        
+    else:
+        print(3)
+        PARAMS['MESSAGES'][0]['message']['text'] = message['text']
+        x = requests.post(url, json = PARAMS)
+
+
 
     print('imconnector.send.messages', x.text, '\n')
 
@@ -245,24 +301,42 @@ async def text_request(message: types.Message, state: FSMContext):
     #     x = requests.post(url, json = PARAMS)
     #     print('\n', x.text, '\n')
         
-        
 
-@dp.message_handler(state=GameStates.new_request, content_types=['photo', 'text'])
-async def text_request(message: types.Message, state: FSMContext):
+# @dp.message_handler(state=GameStates.open_line, content_types=['document'])
+# async def process_doc_step2(message: types.Message, state: FSMContext):
+#     print(message)
+
+# {"message_id": 2598, "from": {"id": 806720968, "is_bot": false, "first_name": "Eddie", "username": "Eddudos", "language_code": "en"}, 
+# "chat": {"id": 806720968, "first_name": "Eddie", "username": "Eddudos", "type": "private"}, "date": 1680159688, 
+# "document": {"file_name": "Ссылка6.docx", "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
+# "file_id": "BQACAgIAAxkBAAIKJmQlM8j2AsvU0DrIjezcYxyqgFMNAAKYJwAC1s8pSdFY6_RS6ZC2LwQ", "file_unique_id": "AgADmCcAAtbPKUk", "file_size": 10273}}
+
+
+@dp.message_handler(state=GameStates.open_line, content_types=['photo', 'text', 'document'])
+async def open_line(message: types.Message, state: FSMContext):
     # text = await read_from_db(BotDictionary, 'новое обращение')
-    
-    print(2)
-
     user_data = await state.get_data()
-
-    if await read_from_db(BotUser, message['from']['id']) >= user_data['counter']:
-        if message['text'] not in ['0', '1']:
-            await GameStates.request.set()
-            keyboard = create_keyboard(buttons_lst)
-            text = await read_from_db(BotDictionary, 'выбор_типа_обращения')
-            await state.update_data(counter=user_data['counter'] + 1)
-            await message.answer(text, reply_markup=keyboard)
+    if user_data['num_request'] < await read_from_db(BotUser, message['from']['id']):
+        if message['text'] != '0' and message['text'] != '1':
+            text = await read_from_db(BotDictionary, 'прощание')
+            btn = await read_from_db(BotDictionary, 'новое обращение')
+            ##### HARDCODE
+            key_row = InlineKeyboardButton(text=btn, callback_data=btn, url='t.me/sibteh_alyona_bot?start=0')  
+            keyboard = InlineKeyboardMarkup()
+            keyboard.add(key_row)
+            await message.answer(text, reply_markup=keyboard) 
+            await GameStates.new_request.set()
             return
+
+
+    # if await read_from_db(BotUser, message['from']['id']) >= user_data['counter']:
+    #     if message['text'] not in ['0', '1']:
+    #         await GameStates.request.set()
+    #         keyboard = create_keyboard(buttons_lst)
+    #         text = await read_from_db(BotDictionary, 'выбор_типа_обращения')
+    #         await state.update_data(counter=user_data['counter'] + 1)
+    #         await message.answer(text, reply_markup=keyboard)
+    #         return
         
 
     if 'last_name' in message['from']:
@@ -296,18 +370,24 @@ async def text_request(message: types.Message, state: FSMContext):
         'auth': await read_from_db(TokenTable, 'access_token')
     }
 
-    if message.caption:  ####
-        PARAMS['MESSAGES'][0]['message']['text'] = message.caption
+
 
     if message.photo:
-        # print('message photo', message.photo)
         file = await bot.get_file(message.photo[-1]['file_id']) 
-        # print('get file 2', file)
         file_path = file.file_path
-        # print('file path', file_path)
         photo_url = f"https://api.telegram.org/file/bot{API_KEY}/{file_path}"
         print('photo url', photo_url)
         PARAMS['MESSAGES'][0]['message']['files'] = [{'url': photo_url}]
+        if message.caption:  ####
+            PARAMS['MESSAGES'][0]['message']['text'] = message.caption
+    if message.document:
+        file = await bot.get_file(message.document['file_id'])
+        file_path = file.file_path
+        doc_url = f"https://api.telegram.org/file/bot{API_KEY}/{file_path}"
+        print('doc url', doc_url)
+        PARAMS['MESSAGES'][0]['message']['files'] = [{'url': doc_url}]
+        if message.caption:
+            PARAMS['MESSAGES'][0]['message']['text'] = message.caption
 
     # [<PhotoSize {"file_id": "AgACAgIAAxkBAAIBtWQZkRxOCpVeMxCsasVaN0KlHkenAALqyzEb4ZvJSN4yxzFShx0XAQADAgADcwADLwQ", 
     # "file_unique_id": "AQAD6ssxG-GbyUh4", "file_size": 1015, "width": 90, "height": 55}>, 
@@ -329,28 +409,6 @@ async def text_request(message: types.Message, state: FSMContext):
         x = requests.post(url, json = PARAMS)
         print('\n', x.text, '\n')
 
-    # if ('error', 'invalid_token') in x.json().items() or ('error', 'expired_token') in x.json().items():
-    #     #
-    #     # TODO: 
-    #     # Check if token does refresh
-    #     #
-    #     query_url = 'https://oauth.bitrix.info/oauth/token/'
-    #     query_data = urlencode({
-    #                 'grant_type': 'refresh_token',
-    #                 'client_id': CLIENT_ID,
-    #                 'client_secret': CLIENT_SECRET,
-    #                 'refresh_token': await read_from_db(TokenTable, 'refresh_token')
-    #     })
-    #     x = requests.get(f'{query_url}?{query_data}')
-    #     print('expired_token!', x.json(), '\n')
-        
-    #     token = x.json()['access_token']
-    #     refresh_token = x.json()['refresh_token']
-    #     await update_field(TokenTable, 'access_token', token)
-    #     await update_field(TokenTable, 'refresh_token', refresh_token)
-    #     x = requests.post(url, json = PARAMS)
-    #     print('\n', x.text, '\n')
-
 
     # data format:
     # {"id": "3464840176174457904", "from": {"id": 806720968, "is_bot": false, "first_name": "Eddie",
@@ -362,3 +420,23 @@ async def text_request(message: types.Message, state: FSMContext):
     # [{"text": "Баг", "callback_data": "bug"}], [{"text": "Неудобство", "callback_data": "uncomfy"}], 
     # [{"text": "Необходим оператор", "callback_data": "call_help"}]]}}, "chat_instance": "-4369657504028673461", 
     # "data": "uncomfy"}
+
+
+@dp.message_handler(state=GameStates.new_request, content_types=['photo', 'text'])
+async def new_request(message: types.Message, state: FSMContext):
+    text = await read_from_db(BotDictionary, 'прощание')
+    btn = await read_from_db(BotDictionary, 'новое обращение')
+    ##### HARDCODE
+    key_row = InlineKeyboardButton(text=btn, callback_data=btn, url='t.me/sibteh_alyona_bot?start=0')  
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(key_row)
+    await message.answer(text, reply_markup=keyboard) 
+
+
+# @dp.callback_query_handler(state=GameStates.new_request)
+# async def new_request_button(message: types.Message, callback_query: types.CallbackQuery, state: FSMContext):
+#     print(1)
+#     await state.finish()
+#     # await GameStates.start.set()
+#     # await dp.current_handler().send_welcome(message)
+#     print(2)

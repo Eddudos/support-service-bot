@@ -13,9 +13,10 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from urllib.parse import urlencode
 from myproject.settings import CLIENT_SECRET, CLIENT_ID
-from bot_app.models import TokenTable, BotUser
-from bot_app.management.commands.src.bot_conf.app import dp, bot, loop, send_message, send_photo  #, set_state
+from bot_app.management.commands.src.bot_conf.app import dp, bot, loop, send_msg, send_photo, send_file
 from django.db.models import F
+from aiogram.utils import executor
+
 
 def asyncio_run(future, as_task=True):
     """
@@ -39,6 +40,16 @@ def _to_task(future, as_task, loop):
         return future
     return loop.create_task(future)
 
+# def get_users():
+#     """
+#     Return users list
+#     In this example returns some random ID's
+#     """
+#     yield from (434434944, 806720968)
+
+# def execute_broadcast():
+#     executor.start(dp, broadcaster())
+
 
 @api_view(['POST', 'GET'])
 def snippet_list(request, format=None):
@@ -54,6 +65,9 @@ def snippet_list(request, format=None):
         print('GEEEEEEEEEEEEEEEEEEET')
 
     if request.method == 'POST':
+        from bot_app.models import TokenTable, BotUser
+        
+
         # loop.run_until_complete(main(request.META['SERVER_NAME'] + ":" + request.META['SERVER_PORT']))
 
         # print(request.get_host())
@@ -83,32 +97,9 @@ def snippet_list(request, format=None):
         else:
             token = request.POST['auth[access_token]']
             TokenTable.objects.filter(name='access_token').update(token=token)
-                
-        # else: 
-        #     token = request.POST['auth[access_token]']
+            
 
         if request.POST['event'] == 'ONAPPINSTALL':
-            # for i in request.POST:
-            #     print(i, request.POST[i])
-            # serializer = SnippetSerializer(data=request.data)
-            # PARAMS = {
-            #     'CODE' : 'itrbot',
-            #     'TYPE' : 'O',
-            #     'EVENT_HANDLER' : 'http://95.163.235.140:8005/snippets/',
-            #     # 'EVENT_MESSAGE_ADD' : 'http://95.163.235.140:8005/snippets/',
-            #     # 'EVENT_WELCOME_MESSAGE' : 'http://95.163.235.140:8005/snippets/',
-            #     # 'EVENT_BOT_DELETE' : 'http://95.163.235.140:8005/snippets/',
-            #     'OPENLINE' : 'Y',
-            #     'PROPERTIES' : {'NAME' : 'Python Telegram Bot 0',
-            #     'WORK_POSITION' : "Get bot for you open channel",
-            #     'COLOR' : 'RED'
-            #     },
-            #     'auth': token
-            # }
-            
-            # url = request.POST['auth[client_endpoint]'] + 'imbot.register'
-            # x = requests.post(url, json = PARAMS)
-            # print('imbot.register', x.text)
             refresh_token = request.POST['auth[refresh_token]']
             TokenTable.objects.filter(name='refresh_token').update(token=refresh_token)
             
@@ -186,11 +177,22 @@ def snippet_list(request, format=None):
             # kinda workaround
             print('ONIMCONNECTORMESSAGEADD!! ')
 
-            if 'data[MESSAGES][0][message][files][0][link]' in request.POST:
-                loop.run_until_complete(send_photo(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][files][0][link]']))
-                request.POST['data[MESSAGES][0][message][files][0][link]']
+            # if 'data[MESSAGES][0][message][files][0][link]' in request.POST:
+            #     loop.run_until_complete(send_photo(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][files][0][link]']))
+                # request.POST['data[MESSAGES][0][message][files][0][link]']
 
-            loop.run_until_complete(send_message(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][text]']))
+            if 'data[MESSAGES][0][message][files][0][type]' in request.POST:
+                if request.POST['data[MESSAGES][0][message][files][0][type]'] == 'image':
+                    loop.run_until_complete(send_photo(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][files][0][link]']))
+                if request.POST['data[MESSAGES][0][message][files][0][type]'] == 'file':
+                    print(1)
+                    # print(request.POST['data[MESSAGES][0][message][files][0][name]'])
+                    loop.run_until_complete(send_file(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][files][0][link]'], 
+                                                      request.POST['data[MESSAGES][0][message][files][0][name]']))
+                    print(2)
+
+
+            loop.run_until_complete(send_msg(request.POST['data[MESSAGES][0][chat][id]'], request.POST['data[MESSAGES][0][message][text]']))
             
             if 'bx-messenger-content-item-ol-output bx-messenger-content-item-vote' in request.POST['data[MESSAGES][0][message][params][CLASS]']:
                 BotUser.objects.filter(user_id=request.POST['data[MESSAGES][0][chat][id]']).update(last_date=now(), counter=F('counter')+1)
@@ -290,3 +292,5 @@ def snippet_list(request, format=None):
 #     elif request.method == 'DELETE':
 #         snippet.delete()
 #         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
